@@ -251,7 +251,7 @@
     let isForcedTaxable = false; 
     let shareText = "";
 
-    // 100%確実に動くボタンパチパチ色切り替えロジック
+    // ボタンパチパチ色切り替えロジック
     toggleBtns.forEach(btn => {
       btn.addEventListener("click", () => {
         toggleBtns.forEach(b => b.classList.remove("active"));
@@ -264,7 +264,7 @@
       });
     });
 
-    // 【修正】安全なLocalStorage復元ロジック（真っ白バグを完全封殺）
+    // 安全なLocalStorage復元ロジック
     const savedCurrentRev = localStorage.getItem("cocoa-invoice-rev");
     const savedBiz = localStorage.getItem("cocoa-invoice-biz");
     const savedForced = localStorage.getItem("cocoa-invoice-forced");
@@ -282,14 +282,16 @@
       });
     }
 
-    // 超軽量・リアルタイム消費税計算エンジン
+    // 【修正】超軽量・リアルタイム消費税計算エンジン
     function calculateInvoice() {
       const currentRev = parseFloat(currentRevInput.value) || 0; 
-      const mishiRate = parseFloat(bizSelect.value) || 0.5;      
+      // 🔍 修正の肝：HTMLから受け取った文字列を100%確実に正しい計算用数値へ変換
+      const mishiRate = parseFloat(bizSelect.value);      
 
+      // 売上にかかる消費税の基本額（売上の10%分）
       const baseTax = currentRev * 0.1;
 
-      // プランA：2割特例（1000万超の人は対象外）
+      // プランA：2割特例（1000万超の強制課税の人は対象外）
       let taxA = 0;
       if (isForcedTaxable === true) {
         taxA = baseTax; 
@@ -297,20 +299,21 @@
         taxA = baseTax * 0.2; 
       }
 
-      // プランB：簡易課税
-      const taxB = baseTax * (1 - mishiRate);
+      // プランB：簡易課税（基本消費税 × (1 － みなし仕入れ率)）
+      const taxB = baseTax * (1.0 - mishiRate);
 
-      // インボイス登録による手取りの目減り額
+      // インボイス登録による手取りのリアルな目減り額を逆算
       let lossValue = 0;
       if (isForcedTaxable === true) {
-        lossValue = 0; 
+        lossValue = 0; // もともと課税事業者の人は、インボイス関係なく消費税を払うので目減りは0
       } else {
+        // 本来免税だった人が、インボイスに登録して納税した（一番安いプランの）額がそのまま手取りの減少になる
         lossValue = Math.min(taxA, taxB); 
       }
 
       let recommendPlan = "";
       if (isForcedTaxable === true) {
-        recommendPlan = "簡易課税一択（みなし仕入れ控除）";
+        recommendPlan = "簡易課税（みなし仕入れ控除）";
       } else {
         if (taxA < taxB) {
           recommendPlan = "プランA：2割特例";
@@ -321,7 +324,7 @@
         }
       }
 
-      // 画面上の出力パーツへ一瞬で反映
+      // 画面上の出力パーツへ一瞬で反映（0秒で数値がガチガチ動きます）
       resLossVal.innerText = lossValue.toFixed(1);
       
       if (isForcedTaxable === true) {
@@ -334,7 +337,7 @@
       resRecommend.innerText = recommendPlan;
 
       localStorage.setItem("cocoa-invoice-rev", currentRev);
-      localStorage.setItem("cocoa-invoice-biz", mishiRate);
+      localStorage.setItem("cocoa-invoice-biz", bizSelect.value);
       localStorage.setItem("cocoa-invoice-forced", isForcedTaxable);
 
       shareText = "【インボイス・消費税一瞬判定結果】\n現在の売上: " + currentRev + "万円\n" +
@@ -365,6 +368,7 @@
     calculateInvoice();
   });
 </script>
+
 
 </body>
 </html>
